@@ -78,8 +78,14 @@ def users_create(args):
     if appbuilder.sm.find_user(args.username):
         print(f'{args.username} already exist in the db')
         return
-    user = appbuilder.sm.add_user(args.username, args.firstname, args.lastname, args.email, role, password)
-    if user:
+    if user := appbuilder.sm.add_user(
+        args.username,
+        args.firstname,
+        args.lastname,
+        args.email,
+        role,
+        password,
+    ):
         print(f'User "{args.username}" created with role "{args.role}"')
     else:
         raise SystemExit('Failed to create user')
@@ -200,8 +206,7 @@ def _import_users(users_list: List[Dict[str, Any]]):
         msg = []
         for row_num, failure in e.normalized_messages().items():
             msg.append(f'[Item {row_num}]')
-            for key, value in failure.items():
-                msg.append(f'\t{key}: {value}')
+            msg.extend(f'\t{key}: {value}' for key, value in failure.items())
         raise SystemExit("Error: Input file didn't pass validation. See below:\n{}".format('\n'.join(msg)))
 
     for user in users_list:
@@ -215,8 +220,7 @@ def _import_users(users_list: List[Dict[str, Any]]):
 
             roles.append(role)
 
-        existing_user = appbuilder.sm.find_user(email=user['email'])
-        if existing_user:
+        if existing_user := appbuilder.sm.find_user(email=user['email']):
             print(f"Found existing user with email '{user['email']}'")
             if existing_user.username != user['username']:
                 raise SystemExit(

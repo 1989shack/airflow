@@ -57,8 +57,7 @@ def tutorial_taskflow_api_etl():
         """
         data_string = '{"1001": 301.27, "1002": 433.21, "1003": 502.22}'
 
-        order_data_dict = json.loads(data_string)
-        return order_data_dict
+        return json.loads(data_string)
 
     # [END extract]
 
@@ -70,10 +69,7 @@ def tutorial_taskflow_api_etl():
         A simple Transform task which takes in the collection of order data and
         computes the total order value.
         """
-        total_order_value = 0
-
-        for value in order_data_dict.values():
-            total_order_value += value
+        total_order_value = sum(order_data_dict.values())
 
         return {"total_order_value": total_order_value}
 

@@ -287,10 +287,7 @@ class DbApiHook(BaseHook):
         else:
             target_fields = ''
 
-        if not replace:
-            sql = "INSERT INTO "
-        else:
-            sql = "REPLACE INTO "
+        sql = "REPLACE INTO " if replace else "INSERT INTO "
         sql += f"{table} {target_fields} VALUES ({','.join(placeholders)})"
         return sql
 
@@ -315,9 +312,7 @@ class DbApiHook(BaseHook):
 
             with closing(conn.cursor()) as cur:
                 for i, row in enumerate(rows, 1):
-                    lst = []
-                    for cell in row:
-                        lst.append(self._serialize_cell(cell, conn))
+                    lst = [self._serialize_cell(cell, conn) for cell in row]
                     values = tuple(lst)
                     sql = self._generate_insert_sql(table, values, target_fields, replace, **kwargs)
                     self.log.debug("Generated sql: %s", sql)

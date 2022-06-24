@@ -106,6 +106,4 @@ class TaskMap(Base):
 
     @property
     def variant(self) -> TaskMapVariant:
-        if self.keys is None:
-            return TaskMapVariant.LIST
-        return TaskMapVariant.DICT
+        return TaskMapVariant.LIST if self.keys is None else TaskMapVariant.DICT

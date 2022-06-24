@@ -133,22 +133,22 @@ class SerializedDagModel(Base):
         # Checks if (Current Time - Time when the DAG was written to DB) < min_update_interval
         # If Yes, does nothing
         # If No or the DAG does not exists, updates / writes Serialized DAG to DB
-        if min_update_interval is not None:
-            if (
-                session.query(literal(True))
-                .filter(
-                    and_(
-                        cls.dag_id == dag.dag_id,
-                        (timezone.utcnow() - timedelta(seconds=min_update_interval)) < cls.last_updated,
-                    )
+        if min_update_interval is not None and (
+            session.query(literal(True))
+            .filter(
+                and_(
+                    cls.dag_id == dag.dag_id,
+                    (timezone.utcnow() - timedelta(seconds=min_update_interval))
+                    < cls.last_updated,
                 )
-                .first()
-                is not None
-            ):
-                # TODO: .first() is not None can be changed to .scalar() once we update to sqlalchemy 1.4+
-                # as the associated sqlalchemy bug for MySQL was fixed
-                # related issue : https://github.com/sqlalchemy/sqlalchemy/issues/5481
-                return False
+            )
+            .first()
+            is not None
+        ):
+            # TODO: .first() is not None can be changed to .scalar() once we update to sqlalchemy 1.4+
+            # as the associated sqlalchemy bug for MySQL was fixed
+            # related issue : https://github.com/sqlalchemy/sqlalchemy/issues/5481
+            return False
 
         log.debug("Checking if DAG (%s) changed", dag.dag_id)
         new_serialized_dag = cls(dag)
@@ -205,11 +205,11 @@ class SerializedDagModel(Base):
         """The DAG deserialized from the ``data`` column"""
         SerializedDAG._load_operator_extra_links = self.load_op_links
 
-        if isinstance(self.data, dict):
-            dag = SerializedDAG.from_dict(self.data)  # type: Any
-        else:
-            dag = SerializedDAG.from_json(self.data)
-        return dag
+        return (
+            SerializedDAG.from_dict(self.data)
+            if isinstance(self.data, dict)
+            else SerializedDAG.from_json(self.data)
+        )
 
     @classmethod
     @provide_session
@@ -253,10 +253,7 @@ class SerializedDagModel(Base):
     @classmethod
     @provide_session
     def get_dag(cls, dag_id: str, session: Session = None) -> Optional['SerializedDAG']:
-        row = cls.get(dag_id, session=session)
-        if row:
-            return row.dag
-        return None
+        return row.dag if (row := cls.get(dag_id, session=session)) else None
 
     @classmethod
     @provide_session
@@ -269,8 +266,7 @@ class SerializedDagModel(Base):
         :param dag_id: the DAG to fetch
         :param session: ORM Session
         """
-        row = session.query(cls).filter(cls.dag_id == dag_id).one_or_none()
-        if row:
+        if row := session.query(cls).filter(cls.dag_id == dag_id).one_or_none():
             return row
 
         # If we didn't find a matching DAG id then ask the DAG table to find

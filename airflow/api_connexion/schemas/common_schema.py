@@ -177,6 +177,4 @@ class JsonObjectField(fields.Field):
         return json.loads(value) if isinstance(value, str) else value
 
     def _deserialize(self, value, attr, data, **kwargs):
-        if isinstance(value, str):
-            return json.loads(value)
-        return value
+        return json.loads(value) if isinstance(value, str) else value

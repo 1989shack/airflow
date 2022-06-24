@@ -134,8 +134,7 @@ def requires_authentication(function: T):
 
     @wraps(function)
     def decorated(*args, **kwargs):
-        header = request.headers.get("Authorization")
-        if header:
+        if header := request.headers.get("Authorization"):
             ctx = stack.top
             token = ''.join(header.split()[1:])
             return_code = _gssapi_authenticate(token)

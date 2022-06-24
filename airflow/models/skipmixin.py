@@ -103,7 +103,7 @@ class SkipMixin(LoggingMixin):
                 )
                 .one()
             )
-        elif execution_date and dag_run and execution_date != dag_run.execution_date:
+        elif execution_date and execution_date != dag_run.execution_date:
             raise ValueError(
                 "execution_date has a different value to  dag_run.execution_date -- please only pass dag_run"
             )
@@ -150,10 +150,7 @@ class SkipMixin(LoggingMixin):
         dag = task.dag
         assert dag  # For Mypy.
 
-        # At runtime, the downstream list will only be operators
-        downstream_tasks = cast("List[BaseOperator]", task.downstream_list)
-
-        if downstream_tasks:
+        if downstream_tasks := cast("List[BaseOperator]", task.downstream_list):
             # For a branching workflow that looks like this, when "branch" does skip_all_except("task1"),
             # we intuitively expect both "task1" and "join" to execute even though strictly speaking,
             # "join" is also immediately downstream of "branch" and should have been skipped. Therefore,

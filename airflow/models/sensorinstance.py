@@ -90,7 +90,7 @@ class SensorInstance(Base):
         """
         module_name, class_name = obj.__module__, obj.__class__.__name__
 
-        return module_name + "." + class_name
+        return f"{module_name}.{class_name}"
 
     @classmethod
     @provide_session
@@ -176,10 +176,11 @@ class SensorInstance(Base):
         """
         from airflow.models.dagrun import DagRun  # Avoid circular import
 
-        dr = (
+        return (
             session.query(DagRun)
-            .filter(DagRun.dag_id == self.dag_id, DagRun.execution_date == self.execution_date)
+            .filter(
+                DagRun.dag_id == self.dag_id,
+                DagRun.execution_date == self.execution_date,
+            )
             .one()
         )
-
-        return dr

@@ -255,16 +255,15 @@ class Connection(Base, LoggingMixin):
 
     def get_password(self) -> Optional[str]:
         """Return encrypted password."""
-        if self._password and self.is_encrypted:
-            fernet = get_fernet()
-            if not fernet.is_encrypted:
-                raise AirflowException(
-                    f"Can't decrypt encrypted password for login={self.login}  "
-                    f"FERNET_KEY configuration is missing"
-                )
-            return fernet.decrypt(bytes(self._password, 'utf-8')).decode()
-        else:
+        if not self._password or not self.is_encrypted:
             return self._password
+        fernet = get_fernet()
+        if not fernet.is_encrypted:
+            raise AirflowException(
+                f"Can't decrypt encrypted password for login={self.login}  "
+                f"FERNET_KEY configuration is missing"
+            )
+        return fernet.decrypt(bytes(self._password, 'utf-8')).decode()
 
     def set_password(self, value: Optional[str]):
         """Encrypt password and set in object attribute."""
@@ -274,9 +273,11 @@ class Connection(Base, LoggingMixin):
             self.is_encrypted = fernet.is_encrypted
 
     @declared_attr
-    def password(cls):
+    def password(self):
         """Password. The value is decrypted/encrypted when reading/setting the value."""
-        return synonym('_password', descriptor=property(cls.get_password, cls.set_password))
+        return synonym(
+            '_password', descriptor=property(self.get_password, self.set_password)
+        )
 
     def get_extra(self) -> Dict:
         """Return encrypted extra-data."""
@@ -306,9 +307,9 @@ class Connection(Base, LoggingMixin):
             self.is_extra_encrypted = False
 
     @declared_attr
-    def extra(cls):
+    def extra(self):
         """Extra data. The value is decrypted/encrypted when reading/setting the value."""
-        return synonym('_extra', descriptor=property(cls.get_extra, cls.set_extra))
+        return synonym('_extra', descriptor=property(self.get_extra, self.set_extra))
 
     def rotate_fernet_key(self):
         """Encrypts data with a new key. See: :ref:`security/fernet`"""
@@ -417,8 +418,7 @@ class Connection(Base, LoggingMixin):
         """
         for secrets_backend in ensure_secrets_loaded():
             try:
-                conn = secrets_backend.get_connection(conn_id=conn_id)
-                if conn:
+                if conn := secrets_backend.get_connection(conn_id=conn_id):
                     return conn
             except Exception:
                 log.exception(
@@ -432,14 +432,11 @@ class Connection(Base, LoggingMixin):
     @classmethod
     def from_json(cls, value, conn_id=None) -> 'Connection':
         kwargs = json.loads(value)
-        extra = kwargs.pop('extra', None)
-        if extra:
+        if extra := kwargs.pop('extra', None):
             kwargs['extra'] = extra if isinstance(extra, str) else json.dumps(extra)
-        conn_type = kwargs.pop('conn_type', None)
-        if conn_type:
+        if conn_type := kwargs.pop('conn_type', None):
             kwargs['conn_type'] = cls._normalize_conn_type(conn_type)
-        port = kwargs.pop('port', None)
-        if port:
+        if port := kwargs.pop('port', None):
             try:
                 kwargs['port'] = int(port)
             except ValueError:

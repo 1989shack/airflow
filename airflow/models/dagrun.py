@@ -261,7 +261,7 @@ class DagRun(Base, LoggingMixin):
         else:
             query = query.filter(cls.state.in_([State.RUNNING, State.QUEUED]))
         query = query.group_by(cls.dag_id)
-        return {dag_id: count for dag_id, count in query.all()}
+        return dict(query.all())
 
     @classmethod
     def next_dagruns_to_examine(
@@ -427,16 +427,14 @@ class DagRun(Base, LoggingMixin):
         if state:
             if isinstance(state, str):
                 tis = tis.filter(TI.state == state)
-            else:
-                # this is required to deal with NULL values
-                if State.NONE in state:
-                    if all(x is None for x in state):
-                        tis = tis.filter(TI.state.is_(None))
-                    else:
-                        not_none_state = [s for s in state if s]
-                        tis = tis.filter(or_(TI.state.in_(not_none_state), TI.state.is_(None)))
+            elif State.NONE in state:
+                if all(x is None for x in state):
+                    tis = tis.filter(TI.state.is_(None))
                 else:
-                    tis = tis.filter(TI.state.in_(state))
+                    not_none_state = [s for s in state if s]
+                    tis = tis.filter(or_(TI.state.in_(not_none_state), TI.state.is_(None)))
+            else:
+                tis = tis.filter(TI.state.in_(state))
 
         if self.dag and self.dag.partial:
             tis = tis.filter(TI.task_id.in_(self.dag.task_ids))
@@ -599,7 +597,7 @@ class DagRun(Base, LoggingMixin):
         else:
             self.set_state(DagRunState.RUNNING)
 
-        if self._state == DagRunState.FAILED or self._state == DagRunState.SUCCESS:
+        if self._state in [DagRunState.FAILED, DagRunState.SUCCESS]:
             msg = (
                 "DagRun Finished: dag_id=%s, execution_date=%s, run_id=%s, "
                 "run_start_date=%s, run_end_date=%s, run_duration=%s, "
@@ -642,8 +640,9 @@ class DagRun(Base, LoggingMixin):
         tis = list(self.get_task_instances(session=session, state=State.task_states))
         self.log.debug("number of tis tasks for %s: %s task(s)", self, len(tis))
         dag = self.get_dag()
-        missing_indexes = self._find_missing_task_indexes(dag, tis, session=session)
-        if missing_indexes:
+        if missing_indexes := self._find_missing_task_indexes(
+            dag, tis, session=session
+        ):
             self.verify_integrity(missing_indexes=missing_indexes, session=session)
 
         unfinished_tis = [t for t in tis if t.state in State.unfinished]
@@ -729,10 +728,8 @@ class DagRun(Base, LoggingMixin):
         finished_tis: List[TI],
         session: Session,
     ) -> bool:
-        # there might be runnable tasks that are up for retry and for some reason(retry delay, etc) are
-        # not ready yet so we set the flags to count them in
-        for ut in unfinished_tis:
-            if ut.are_dependencies_met(
+        return any(
+            ut.are_dependencies_met(
                 dep_context=DepContext(
                     flag_upstream_failed=True,
                     ignore_in_retry_period=True,
@@ -740,9 +737,9 @@ class DagRun(Base, LoggingMixin):
                     finished_tis=finished_tis,
                 ),
                 session=session,
-            ):
-                return True
-        return False
+            )
+            for ut in unfinished_tis
+        )
 
     def _emit_true_scheduling_delay_stats_for_finished_state(self, finished_tis: List[TI]) -> None:
         """
@@ -774,8 +771,7 @@ class DagRun(Base, LoggingMixin):
 
             ordered_tis_by_start_date = [ti for ti in finished_tis if ti.start_date]
             ordered_tis_by_start_date.sort(key=lambda ti: ti.start_date, reverse=False)
-            first_start_date = ordered_tis_by_start_date[0].start_date
-            if first_start_date:
+            if first_start_date := ordered_tis_by_start_date[0].start_date:
                 # TODO: Logically, this should be DagRunInfo.run_after, but the
                 # information is not stored on a DagRun, only before the actual
                 # execution on DagModel.next_dagrun_create_after. We should add
@@ -897,23 +893,7 @@ class DagRun(Base, LoggingMixin):
             task = cast("MappedOperator", task)
             num_mapped_tis = task.parse_time_mapped_ti_count
             # Check if the number of mapped literals has changed and we need to mark this TI as removed
-            if num_mapped_tis is not None:
-                if ti.map_index >= num_mapped_tis:
-                    self.log.debug(
-                        "Removing task '%s' as the map_index is longer than the literal mapping list (%s)",
-                        ti,
-                        num_mapped_tis,
-                    )
-                    ti.state = State.REMOVED
-                elif ti.map_index < 0:
-                    self.log.debug("Removing the unmapped TI '%s' as the mapping can now be performed", ti)
-                    ti.state = State.REMOVED
-                else:
-                    self.log.info("Restoring mapped task '%s'", ti)
-                    Stats.incr(f"task_restored_to_dag.{dag.dag_id}", 1, 1)
-                    existing_indexes[task].append(ti.map_index)
-                    expected_indexes[task] = range(num_mapped_tis)
-            else:
+            if num_mapped_tis is None:
                 #  What if it is _now_ dynamically mapped, but wasn't before?
                 total_length = task.run_time_mapped_ti_count(self.run_id, session=session)
 
@@ -938,10 +918,25 @@ class DagRun(Base, LoggingMixin):
                     Stats.incr(f"task_restored_to_dag.{dag.dag_id}", 1, 1)
                     existing_indexes[task].append(ti.map_index)
                     expected_indexes[task] = range(total_length)
+            elif ti.map_index >= num_mapped_tis:
+                self.log.debug(
+                    "Removing task '%s' as the map_index is longer than the literal mapping list (%s)",
+                    ti,
+                    num_mapped_tis,
+                )
+                ti.state = State.REMOVED
+            elif ti.map_index < 0:
+                self.log.debug("Removing the unmapped TI '%s' as the mapping can now be performed", ti)
+                ti.state = State.REMOVED
+            else:
+                self.log.info("Restoring mapped task '%s'", ti)
+                Stats.incr(f"task_restored_to_dag.{dag.dag_id}", 1, 1)
+                existing_indexes[task].append(ti.map_index)
+                expected_indexes[task] = range(num_mapped_tis)
         # Check if we have some missing indexes to create ti for
         missing_indexes: Dict["MappedOperator", Sequence[int]] = defaultdict(list)
         for k, v in existing_indexes.items():
-            missing_indexes.update({k: list(set(expected_indexes[k]).difference(v))})
+            missing_indexes[k] = list(set(expected_indexes[k]).difference(v))
         return task_ids, missing_indexes
 
     def _get_task_creator(
@@ -1094,7 +1089,7 @@ class DagRun(Base, LoggingMixin):
             new_indexes[task] = range(new_length)
         missing_indexes: Dict["MappedOperator", Sequence[int]] = defaultdict(list)
         for k, v in existing_indexes.items():
-            missing_indexes.update({k: list(set(new_indexes[k]).difference(v))})
+            missing_indexes[k] = list(set(new_indexes[k]).difference(v))
         return missing_indexes
 
     @staticmethod

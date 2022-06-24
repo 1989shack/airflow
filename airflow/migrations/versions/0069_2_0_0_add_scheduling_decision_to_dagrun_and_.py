@@ -40,8 +40,8 @@ airflow_version = '2.0.0'
 def upgrade():
     """Apply Add ``scheduling_decision`` to ``DagRun`` and ``DAG``"""
     conn = op.get_bind()
-    is_sqlite = bool(conn.dialect.name == "sqlite")
-    is_mssql = bool(conn.dialect.name == "mssql")
+    is_sqlite = conn.dialect.name == "sqlite"
+    is_mssql = conn.dialect.name == "mssql"
 
     if is_sqlite:
         op.execute("PRAGMA foreign_keys=off")
@@ -90,7 +90,7 @@ def upgrade():
 def downgrade():
     """Unapply Add ``scheduling_decision`` to ``DagRun`` and ``DAG``"""
     conn = op.get_bind()
-    is_sqlite = bool(conn.dialect.name == "sqlite")
+    is_sqlite = conn.dialect.name == "sqlite"
 
     if is_sqlite:
         op.execute("PRAGMA foreign_keys=off")

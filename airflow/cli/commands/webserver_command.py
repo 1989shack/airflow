@@ -114,8 +114,7 @@ class GunicornMonitor(LoggingMixin):
         all_filenames: List[str] = []
         for (root, _, filenames) in os.walk(settings.PLUGINS_FOLDER):
             all_filenames.extend(os.path.join(root, f) for f in filenames)
-        plugin_state = {f: self._get_file_hash(f) for f in sorted(all_filenames)}
-        return plugin_state
+        return {f: self._get_file_hash(f) for f in sorted(all_filenames)}
 
     @staticmethod
     def _get_file_hash(fname: str):
@@ -131,12 +130,10 @@ class GunicornMonitor(LoggingMixin):
         workers = psutil.Process(self.gunicorn_master_proc.pid).children()
 
         def ready_prefix_on_cmdline(proc):
-            try:
+            with suppress(psutil.NoSuchProcess):
                 cmdline = proc.cmdline()
                 if len(cmdline) > 0:
                     return settings.GUNICORN_WORKER_READY_PREFIX in cmdline[0]
-            except psutil.NoSuchProcess:
-                pass
             return False
 
         ready_workers = [proc for proc in workers if ready_prefix_on_cmdline(proc)]
@@ -161,11 +158,9 @@ class GunicornMonitor(LoggingMixin):
 
         :param count: The number of workers to spawn
         """
-        excess = 0
-        for _ in range(count):
+        for excess, _ in enumerate(range(count), start=1):
             # TTIN: Increment the number of processes by one
             self.gunicorn_master_proc.send_signal(signal.SIGTTIN)
-            excess += 1
             self._wait_until_true(
                 lambda: self.num_workers_expected + excess == self._get_num_workers_running(),
                 timeout=self.master_timeout,

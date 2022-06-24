@@ -145,12 +145,10 @@ def _get_model_data_interval(
 ) -> Optional[DataInterval]:
     start = timezone.coerce_datetime(getattr(instance, start_field_name))
     end = timezone.coerce_datetime(getattr(instance, end_field_name))
-    if start is None:
-        if end is not None:
-            raise InconsistentDataInterval(instance, start_field_name, end_field_name)
-        return None
-    elif end is None:
+    if start is None and end is not None or start is not None and end is None:
         raise InconsistentDataInterval(instance, start_field_name, end_field_name)
+    elif start is None:
+        return None
     return DataInterval(start, end)
 
 
@@ -400,11 +398,14 @@ class DAG(LoggingMixin):
         self.timezone = tz or settings.TIMEZONE
 
         # Apply the timezone we settled on to end_date if it wasn't supplied
-        if 'end_date' in self.default_args and self.default_args['end_date']:
-            if isinstance(self.default_args['end_date'], str):
-                self.default_args['end_date'] = timezone.parse(
-                    self.default_args['end_date'], timezone=self.timezone
-                )
+        if (
+            'end_date' in self.default_args
+            and self.default_args['end_date']
+            and isinstance(self.default_args['end_date'], str)
+        ):
+            self.default_args['end_date'] = timezone.parse(
+                self.default_args['end_date'], timezone=self.timezone
+            )
 
         self.start_date = timezone.convert_to_utc(start_date)
         self.end_date = timezone.convert_to_utc(end_date)
@@ -579,9 +580,10 @@ class DAG(LoggingMixin):
             permissions.DEPRECATED_ACTION_CAN_DAG_READ: permissions.ACTION_CAN_READ,
             permissions.DEPRECATED_ACTION_CAN_DAG_EDIT: permissions.ACTION_CAN_EDIT,
         }
-        updated_access_control = {}
-        for role, perms in access_control.items():
-            updated_access_control[role] = {new_perm_mapping.get(perm, perm) for perm in perms}
+        updated_access_control = {
+            role: {new_perm_mapping.get(perm, perm) for perm in perms}
+            for role, perms in access_control.items()
+        }
 
         if access_control != updated_access_control:
             warnings.warn(
@@ -609,10 +611,7 @@ class DAG(LoggingMixin):
                 )
         message += " Please use `DAG.iter_dagrun_infos_between(..., align=False)` instead."
         warnings.warn(message, category=DeprecationWarning, stacklevel=2)
-        if end_date is None:
-            coerced_end_date = timezone.utcnow()
-        else:
-            coerced_end_date = end_date
+        coerced_end_date = timezone.utcnow() if end_date is None else end_date
         it = self.iter_dagrun_infos_between(start_date, pendulum.instance(coerced_end_date), align=False)
         return [info.logical_date for info in it]
 
@@ -803,9 +802,7 @@ class DAG(LoggingMixin):
         start_dates = [t.start_date for t in self.tasks if t.start_date]
         if self.start_date is not None:
             start_dates.append(self.start_date)
-        earliest = None
-        if start_dates:
-            earliest = timezone.coerce_datetime(min(start_dates))
+        earliest = timezone.coerce_datetime(min(start_dates)) if start_dates else None
         latest = self.end_date
         end_dates = [t.end_date for t in self.tasks if t.end_date]
         if len(end_dates) == len(self.tasks):  # not exists null end_date
@@ -1143,12 +1140,11 @@ class DAG(LoggingMixin):
             stacklevel=2,
         )
         if isinstance(self.schedule_interval, str) and self.schedule_interval in cron_presets:
-            _schedule_interval: ScheduleInterval = cron_presets.get(self.schedule_interval)
+            return cron_presets.get(self.schedule_interval)
         elif self.schedule_interval == '@once':
-            _schedule_interval = None
+            return None
         else:
-            _schedule_interval = self.schedule_interval
-        return _schedule_interval
+            return self.schedule_interval
 
     @provide_session
     def handle_callback(self, dagrun, success=True, reason=None, session=NEW_SESSION):
@@ -1188,11 +1184,7 @@ class DAG(LoggingMixin):
         """
         runs = DagRun.find(dag_id=self.dag_id, state=State.RUNNING)
 
-        active_dates = []
-        for run in runs:
-            active_dates.append(run.execution_date)
-
-        return active_dates
+        return [run.execution_date for run in runs]
 
     @provide_session
     def get_num_active_runs(self, external_trigger=None, only_running=True, session=NEW_SESSION):
@@ -1252,7 +1244,7 @@ class DAG(LoggingMixin):
         :param session:
         :return: The list of DagRuns found.
         """
-        dagruns = (
+        return (
             session.query(DagRun)
             .filter(
                 DagRun.dag_id == self.dag_id,
@@ -1261,8 +1253,6 @@ class DAG(LoggingMixin):
             )
             .all()
         )
-
-        return dagruns
 
     @provide_session
     def get_latest_execution_date(self, session: Session = NEW_SESSION) -> Optional[pendulum.DateTime]:
@@ -1317,7 +1307,7 @@ class DAG(LoggingMixin):
             'cache_size': 0,
         }
         if self.jinja_environment_kwargs:
-            jinja_env_options.update(self.jinja_environment_kwargs)
+            jinja_env_options |= self.jinja_environment_kwargs
         env: jinja2.Environment
         if self.render_template_as_native_obj and not force_sandboxed:
             env = airflow.templates.NativeEnvironment(**jinja_env_options)

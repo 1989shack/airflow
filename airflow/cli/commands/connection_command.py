@@ -107,15 +107,9 @@ def _format_connections(conns: List[Connection], file_format: str, serialization
     else:
         raise SystemExit(f"Received unexpected value for `--serialization-format`: {serialization_format!r}")
     if file_format == '.env':
-        connections_env = ""
-        for conn in conns:
-            connections_env += f"{conn.conn_id}={serializer_func(conn)}\n"
-        return connections_env
+        return "".join(f"{conn.conn_id}={serializer_func(conn)}\n" for conn in conns)
 
-    connections_dict = {}
-    for conn in conns:
-        connections_dict[conn.conn_id] = _connection_to_dict(conn)
-
+    connections_dict = {conn.conn_id: _connection_to_dict(conn) for conn in conns}
     if file_format == '.yaml':
         return yaml.dump(connections_dict)
 
@@ -140,9 +134,12 @@ def _get_connection_types():
     """Returns connection types available."""
     _connection_types = ['fs', 'mesos_framework-id', 'email', 'generic']
     providers_manager = ProvidersManager()
-    for connection_type, provider_info in providers_manager.hooks.items():
-        if provider_info:
-            _connection_types.append(connection_type)
+    _connection_types.extend(
+        connection_type
+        for connection_type, provider_info in providers_manager.hooks.items()
+        if provider_info
+    )
+
     return _connection_types
 
 
@@ -152,30 +149,30 @@ def _valid_conn_type(conn_type: str) -> bool:
 
 def connections_export(args):
     """Exports all connections to a file"""
-    file_formats = ['.yaml', '.json', '.env']
     if args.format:
         warnings.warn("Option `--format` is deprecated.  Use `--file-format` instead.", DeprecationWarning)
     if args.format and args.file_format:
         raise SystemExit('Option `--format` is deprecated.  Use `--file-format` instead.')
-    default_format = '.json'
-    provided_file_format = None
     if args.format or args.file_format:
         provided_file_format = f".{(args.format or args.file_format).lower()}"
-
+    else:
+        provided_file_format = None
     file_is_stdout = _is_stdout(args.file)
     if file_is_stdout:
+        default_format = '.json'
         filetype = provided_file_format or default_format
     elif provided_file_format:
         filetype = provided_file_format
     else:
         filetype = Path(args.file.name).suffix
         filetype = filetype.lower()
+        file_formats = ['.yaml', '.json', '.env']
         if filetype not in file_formats:
             raise SystemExit(
                 f"Unsupported file format. The file must have the extension {', '.join(file_formats)}."
             )
 
-    if args.serialization_format and not filetype == '.env':
+    if args.serialization_format and filetype != '.env':
         raise SystemExit("Option `--serialization-format` may only be used with file type `env`.")
 
     with create_session() as session:
@@ -206,13 +203,13 @@ def connections_add(args):
     has_json = bool(args.conn_json)
     has_type = bool(args.conn_type)
 
-    if not has_type and not (has_json or has_uri):
+    if not has_type and not has_json and not has_uri:
         raise SystemExit('Must supply either conn-uri or conn-json if not supplying conn-type')
 
     if has_json and has_uri:
         raise SystemExit('Cannot supply both conn-uri and conn-json')
 
-    if has_type and not (args.conn_type in _get_connection_types()):
+    if has_type and args.conn_type not in _get_connection_types():
         warnings.warn(f'The type provided to --conn-type is invalid: {args.conn_type}')
         warnings.warn(
             f'Supported --conn-types are:{_get_connection_types()}.'

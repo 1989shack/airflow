@@ -43,7 +43,7 @@ def upgrade():
 
 def downgrade():
     """Unapply Add ``timetable_description`` column to DagModel for UI."""
-    is_sqlite = bool(op.get_bind().dialect.name == 'sqlite')
+    is_sqlite = op.get_bind().dialect.name == 'sqlite'
     if is_sqlite:
         op.execute('PRAGMA foreign_keys=off')
     with op.batch_alter_table('dag') as batch_op:

@@ -47,11 +47,13 @@ def _mysql_tables_where_indexes_already_present(conn):
         ('task_reschedule', 'idx_task_reschedule_dag_run'),
         ('task_fail', 'idx_task_fail_task_instance'),
     ]
-    tables = set()
-    for tbl, idx in to_check:
-        if conn.execute(f"show indexes from {tbl} where Key_name = '{idx}'").first():
-            tables.add(tbl)
-    return tables
+    return {
+        tbl
+        for tbl, idx in to_check
+        if conn.execute(
+            f"show indexes from {tbl} where Key_name = '{idx}'"
+        ).first()
+    }
 
 
 def upgrade():

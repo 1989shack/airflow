@@ -138,10 +138,7 @@ class AbstractOperator(LoggingMixin, DAGNode):
     @property
     def dag_id(self) -> str:
         """Returns dag id if it has one or an adhoc + owner"""
-        dag = self.get_dag()
-        if dag:
-            return dag.dag_id
-        return f"adhoc_{self.owner}"
+        return dag.dag_id if (dag := self.get_dag()) else f"adhoc_{self.owner}"
 
     @property
     def node_id(self) -> str:
@@ -154,8 +151,7 @@ class AbstractOperator(LoggingMixin, DAGNode):
         # though, so we don't need to put this after the 'if dag' check.
         from airflow.templates import SandboxedEnvironment
 
-        dag = self.get_dag()
-        if dag:
+        if dag := self.get_dag():
             return dag.get_template_env(force_sandboxed=False)
         return SandboxedEnvironment(cache_size=0)
 
@@ -191,9 +187,7 @@ class AbstractOperator(LoggingMixin, DAGNode):
 
     def get_direct_relative_ids(self, upstream: bool = False) -> Set[str]:
         """Get direct relative IDs to the current task, upstream or downstream."""
-        if upstream:
-            return self.upstream_task_ids
-        return self.downstream_task_ids
+        return self.upstream_task_ids if upstream else self.downstream_task_ids
 
     def get_flat_relative_ids(
         self,
@@ -237,12 +231,13 @@ class AbstractOperator(LoggingMixin, DAGNode):
         """
         if self.weight_rule == WeightRule.ABSOLUTE:
             return self.priority_weight
-        elif self.weight_rule == WeightRule.DOWNSTREAM:
+        elif (
+            self.weight_rule == WeightRule.DOWNSTREAM
+            or self.weight_rule != WeightRule.UPSTREAM
+        ):
             upstream = False
-        elif self.weight_rule == WeightRule.UPSTREAM:
-            upstream = True
         else:
-            upstream = False
+            upstream = True
         dag = self.get_dag()
         if dag is None:
             return self.priority_weight
@@ -262,13 +257,11 @@ class AbstractOperator(LoggingMixin, DAGNode):
             raise AirflowException("Can't load operators")
         for ope in plugins_manager.operator_extra_links:
             if ope.operators and self.operator_class in ope.operators:
-                op_extra_links_from_plugin.update({ope.name: ope})
+                op_extra_links_from_plugin[ope.name] = ope
 
-        operator_extra_links_all = {link.name: link for link in self.operator_extra_links}
-        # Extra links defined in Plugins overrides operator links defined in operator
-        operator_extra_links_all.update(op_extra_links_from_plugin)
-
-        return operator_extra_links_all
+        return {
+            link.name: link for link in self.operator_extra_links
+        } | op_extra_links_from_plugin
 
     @cached_property
     def global_operator_extra_link_dict(self) -> Dict[str, Any]:
@@ -298,8 +291,8 @@ class AbstractOperator(LoggingMixin, DAGNode):
         link: Optional["BaseOperatorLink"] = self.operator_extra_link_dict.get(link_name)
         if not link:
             link = self.global_operator_extra_link_dict.get(link_name)
-            if not link:
-                return None
+        if not link:
+            return None
         # Check for old function signature
         parameters = inspect.signature(link.get_link).parameters
         args = [name for name, p in parameters.items() if p.kind != p.VAR_KEYWORD]
@@ -410,10 +403,7 @@ class AbstractOperator(LoggingMixin, DAGNode):
             return {self.render_template(element, context, jinja_env) for element in value}
 
         # More complex collections.
-        if seen_oids is None:
-            oids = set()
-        else:
-            oids = seen_oids
+        oids = set() if seen_oids is None else seen_oids
         self._render_nested_template_fields(value, context, jinja_env, oids)
         return value
 

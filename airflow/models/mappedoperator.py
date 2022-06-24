@@ -213,7 +213,7 @@ class OperatorPartial:
         start_date = partial_kwargs.pop("start_date")
         end_date = partial_kwargs.pop("end_date")
 
-        op = MappedOperator(
+        return MappedOperator(
             operator_class=self.operator_class,
             mapped_kwargs=mapped_kwargs,
             partial_kwargs=partial_kwargs,
@@ -237,7 +237,6 @@ class OperatorPartial:
             # to BaseOperator.expand() contribute to operator arguments.
             expansion_kwargs_attr="mapped_kwargs",
         )
-        return op
 
 
 @attr.define(kw_only=True)
@@ -574,7 +573,12 @@ class MappedOperator(AbstractOperator):
 
         # Populate literal mapped arguments first.
         map_lengths: Dict[str, int] = collections.defaultdict(int)
-        map_lengths.update((k, len(v)) for k, v in expansion_kwargs.items() if not isinstance(v, XComArg))
+        map_lengths |= (
+            (k, len(v))
+            for k, v in expansion_kwargs.items()
+            if not isinstance(v, XComArg)
+        )
+
 
         # Build a reverse mapping of what arguments each task contributes to.
         mapped_dep_keys: Dict[str, Set[str]] = collections.defaultdict(set)

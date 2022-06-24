@@ -92,8 +92,7 @@ def _get_dag_run(
        the logical date; otherwise use it as a run ID and set the logical date
        to the current time.
     """
-    dag_run = dag.get_dagrun(run_id=exec_date_or_run_id, session=session)
-    if dag_run:
+    if dag_run := dag.get_dagrun(run_id=exec_date_or_run_id, session=session):
         return dag_run, False
 
     try:
@@ -322,9 +321,9 @@ def task_run(args, dag=None):
         )
 
     if args.raw:
-        unsupported_options = [o for o in RAW_TASK_UNSUPPORTED_OPTION if getattr(args, o)]
-
-        if unsupported_options:
+        if unsupported_options := [
+            o for o in RAW_TASK_UNSUPPORTED_OPTION if getattr(args, o)
+        ]:
             unsupported_raw_task_flags = ', '.join(f'--{o}' for o in RAW_TASK_UNSUPPORTED_OPTION)
             unsupported_flags = ', '.join(f'--{o}' for o in unsupported_options)
             raise AirflowException(
@@ -366,9 +365,6 @@ def task_run(args, dag=None):
                 dag = get_dag(args.subdir, args.dag_id)
         else:
             dag = get_dag(args.subdir, args.dag_id)
-    else:
-        # Use DAG from parameter
-        pass
     task = dag.get_task(task_id=args.task_id)
     ti, _ = _get_ti(task, args.execution_date_or_run_id, args.map_index, pool=args.pool)
     ti.init_run_context(raw=args.raw)
@@ -401,9 +397,9 @@ def task_failed_deps(args):
     ti, _ = _get_ti(task, args.execution_date_or_run_id, args.map_index)
 
     dep_context = DepContext(deps=SCHEDULER_QUEUED_DEPS)
-    failed_deps = list(ti.get_failed_dep_statuses(dep_context=dep_context))
-    # TODO, Do we want to print or log this
-    if failed_deps:
+    if failed_deps := list(
+        ti.get_failed_dep_statuses(dep_context=dep_context)
+    ):
         print("Task instance dependencies not met:")
         for dep in failed_deps:
             print(f"{dep.dep_name}: {dep.reason}")
@@ -530,7 +526,7 @@ def task_test(args, dag=None):
 
     env_vars = {'AIRFLOW_TEST_MODE': 'True'}
     if args.env_vars:
-        env_vars.update(args.env_vars)
+        env_vars |= args.env_vars
         os.environ.update(env_vars)
 
     dag = dag or get_dag(args.subdir, args.dag_id)
@@ -553,11 +549,10 @@ def task_test(args, dag=None):
             else:
                 ti.run(ignore_task_deps=True, ignore_ti_state=True, test_mode=True)
     except Exception:
-        if args.post_mortem:
-            debugger = _guess_debugger()
-            debugger.post_mortem()
-        else:
+        if not args.post_mortem:
             raise
+        debugger = _guess_debugger()
+        debugger.post_mortem()
     finally:
         if not already_has_stream_handler:
             # Make sure to reset back to normal. When run for CLI this doesn't
