@@ -38,7 +38,7 @@ airflow_version = '2.2.0'
 def upgrade():
     """Apply Rename ``concurrency`` column in ``dag`` table to`` max_active_tasks``"""
     conn = op.get_bind()
-    is_sqlite = bool(conn.dialect.name == "sqlite")
+    is_sqlite = conn.dialect.name == "sqlite"
 
     if is_sqlite:
         op.execute("PRAGMA foreign_keys=off")

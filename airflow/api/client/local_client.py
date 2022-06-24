@@ -64,5 +64,4 @@ class Client(api_client.Client):
         return pool.pool, pool.slots, pool.description
 
     def get_lineage(self, dag_id, execution_date):
-        lineage = get_lineage_api(dag_id=dag_id, execution_date=execution_date)
-        return lineage
+        return get_lineage_api(dag_id=dag_id, execution_date=execution_date)

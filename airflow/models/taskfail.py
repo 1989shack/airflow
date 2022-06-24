@@ -80,4 +80,4 @@ class TaskFail(Base):
         prefix = f"<{self.__class__.__name__}: {self.dag_id}.{self.task_id} {self.run_id}"
         if self.map_index != -1:
             prefix += f" map_index={self.map_index}"
-        return prefix + '>'
+        return f'{prefix}>'

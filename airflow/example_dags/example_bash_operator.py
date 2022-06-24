@@ -18,6 +18,7 @@
 
 """Example DAG demonstrating the usage of the BashOperator."""
 
+
 import datetime
 
 import pendulum
@@ -50,9 +51,10 @@ with DAG(
 
     for i in range(3):
         task = BashOperator(
-            task_id='runme_' + str(i),
+            task_id=f'runme_{str(i)}',
             bash_command='echo "{{ task_instance_key_str }}" && sleep 1',
         )
+
         task >> run_this
 
     # [START howto_operator_bash_template]

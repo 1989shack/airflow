@@ -129,9 +129,7 @@ def coerce_timedelta(value: Union[float, timedelta], *, key: str) -> timedelta:
 
 
 def coerce_resources(resources: Optional[Dict[str, Any]]) -> Optional[Resources]:
-    if resources is None:
-        return None
-    return Resources(**resources)
+    return None if resources is None else Resources(**resources)
 
 
 def _get_parent_defaults(dag: Optional["DAG"], task_group: Optional["TaskGroup"]) -> Tuple[dict, ParamsDict]:
@@ -364,7 +362,7 @@ class BaseOperatorMeta(abc.ABCMeta):
             from airflow.models.dag import DagContext
             from airflow.utils.task_group import TaskGroupContext
 
-            if len(args) > 0:
+            if args:
                 raise AirflowException("Use keyword arguments when initializing operators")
 
             instantiated_from_mapped = kwargs.pop(
@@ -398,8 +396,7 @@ class BaseOperatorMeta(abc.ABCMeta):
             if merged_params:
                 kwargs["params"] = merged_params
 
-            hook = getattr(self, '_hook_apply_defaults', None)
-            if hook:
+            if hook := getattr(self, '_hook_apply_defaults', None):
                 args, kwargs = hook(**kwargs, default_args=default_args)
                 default_args = kwargs.pop('default_args', {})
 
@@ -957,14 +954,13 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
         will be set to pickup the outlets from this operator. Other will
         be set as a downstream task of this operator.
         """
-        if isinstance(other, BaseOperator):
-            if not self._outlets and not self.supports_lineage:
-                raise ValueError("No outlets defined for this operator")
-            other.add_inlets([self.task_id])
-            self.set_downstream(other)
-        else:
+        if not isinstance(other, BaseOperator):
             raise TypeError(f"Right hand side ({other}) is not an Operator")
 
+        if not self._outlets and not self.supports_lineage:
+            raise ValueError("No outlets defined for this operator")
+        other.add_inlets([self.task_id])
+        self.set_downstream(other)
         return self
 
     # /Composing Operators ---------------------------------------------
@@ -1057,11 +1053,11 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
 
         if self.__from_mapped:
             pass  # Don't add to DAG -- the mapped task takes the place.
-        elif self.task_id not in dag.task_dict:
+        elif (
+            self.task_id not in dag.task_dict
+            or dag.task_dict[self.task_id] is not self
+        ):
             dag.add_task(self)
-        elif self.task_id in dag.task_dict and dag.task_dict[self.task_id] is not self:
-            dag.add_task(self)
-
         self._dag = dag
 
     def has_dag(self):
@@ -1333,10 +1329,7 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
         Get list of the direct relatives to the current task, upstream or
         downstream.
         """
-        if upstream:
-            return self.upstream_list
-        else:
-            return self.downstream_list
+        return self.upstream_list if upstream else self.downstream_list
 
     def __repr__(self):
         return "<Task({self.task_type}): {self.task_id}>".format(self=self)

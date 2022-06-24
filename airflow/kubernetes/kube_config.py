@@ -81,13 +81,14 @@ class KubeConfig:
                 f"[{self.kubernetes_section}] 'kube_client_request_args' expected a JSON dict, got "
                 + type(self.kube_client_request_args).__name__
             )
-        if self.kube_client_request_args:
-            if '_request_timeout' in self.kube_client_request_args and isinstance(
-                self.kube_client_request_args['_request_timeout'], list
-            ):
-                self.kube_client_request_args['_request_timeout'] = tuple(
-                    self.kube_client_request_args['_request_timeout']
-                )
+        if (
+            self.kube_client_request_args
+            and '_request_timeout' in self.kube_client_request_args
+            and isinstance(self.kube_client_request_args['_request_timeout'], list)
+        ):
+            self.kube_client_request_args['_request_timeout'] = tuple(
+                self.kube_client_request_args['_request_timeout']
+            )
         self.delete_option_kwargs = conf.getjson(self.kubernetes_section, 'delete_option_kwargs', fallback={})
         if not isinstance(self.delete_option_kwargs, dict):
             raise AirflowConfigException(

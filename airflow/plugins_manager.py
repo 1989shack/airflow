@@ -370,9 +370,10 @@ def initialize_ti_deps_plugins():
     registered_ti_dep_classes = {}
 
     for plugin in plugins:
-        registered_ti_dep_classes.update(
-            {as_importable_string(ti_dep.__class__): ti_dep.__class__ for ti_dep in plugin.ti_deps}
-        )
+        registered_ti_dep_classes |= {
+            as_importable_string(ti_dep.__class__): ti_dep.__class__
+            for ti_dep in plugin.ti_deps
+        }
 
 
 def initialize_extra_operators_links_plugins():
@@ -403,9 +404,10 @@ def initialize_extra_operators_links_plugins():
         global_operator_extra_links.extend(plugin.global_operator_extra_links)
         operator_extra_links.extend(list(plugin.operator_extra_links))
 
-        registered_operator_link_classes.update(
-            {as_importable_string(link.__class__): link.__class__ for link in plugin.operator_extra_links}
-        )
+        registered_operator_link_classes |= {
+            as_importable_string(link.__class__): link.__class__
+            for link in plugin.operator_extra_links
+        }
 
 
 def initialize_timetables_plugins():
@@ -450,8 +452,9 @@ def integrate_executor_plugins() -> None:
             raise AirflowPluginException("Invalid plugin name")
         plugin_name: str = plugin.name
 
-        executors_module = make_module('airflow.executors.' + plugin_name, plugin.executors)
-        if executors_module:
+        if executors_module := make_module(
+            f'airflow.executors.{plugin_name}', plugin.executors
+        ):
             executors_modules.append(executors_module)
             sys.modules[executors_module.__name__] = executors_module
 
@@ -479,9 +482,9 @@ def integrate_macros_plugins() -> None:
         if plugin.name is None:
             raise AirflowPluginException("Invalid plugin name")
 
-        macros_module = make_module(f'airflow.macros.{plugin.name}', plugin.macros)
-
-        if macros_module:
+        if macros_module := make_module(
+            f'airflow.macros.{plugin.name}', plugin.macros
+        ):
             macros_modules.append(macros_module)
             sys.modules[macros_module.__name__] = macros_module
             # Register the newly created module on airflow.macros such that it

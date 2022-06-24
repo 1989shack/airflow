@@ -139,15 +139,21 @@ def patch_user(*, username: str, update_mask: UpdateMask = None) -> APIResponse:
         raise NotFound(title="User not found", detail=detail)
     # Check unique username
     new_username = data.get('username')
-    if new_username and new_username != username:
-        if security_manager.find_user(username=new_username):
-            raise AlreadyExists(detail=f"The username `{new_username}` already exists")
+    if (
+        new_username
+        and new_username != username
+        and security_manager.find_user(username=new_username)
+    ):
+        raise AlreadyExists(detail=f"The username `{new_username}` already exists")
 
     # Check unique email
     email = data.get('email')
-    if email and email != user.email:
-        if security_manager.find_user(email=email):
-            raise AlreadyExists(detail=f"The email `{email}` already exists")
+    if (
+        email
+        and email != user.email
+        and security_manager.find_user(email=email)
+    ):
+        raise AlreadyExists(detail=f"The email `{email}` already exists")
 
     # Get fields to update.
     if update_mask is not None:

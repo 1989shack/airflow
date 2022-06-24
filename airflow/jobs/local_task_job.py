@@ -162,9 +162,10 @@ class LocalTaskJob(BaseJob):
         self.terminating = True
         self.log.info("Task exited with return code %s", return_code)
 
-        if not self.task_instance.test_mode:
-            if conf.getboolean('scheduler', 'schedule_after_task_execution', fallback=True):
-                self._run_mini_scheduler_on_child_tasks()
+        if not self.task_instance.test_mode and conf.getboolean(
+            'scheduler', 'schedule_after_task_execution', fallback=True
+        ):
+            self._run_mini_scheduler_on_child_tasks()
 
     def on_kill(self):
         self.task_runner.terminate()

@@ -2011,38 +2011,33 @@ class AirflowHelpFormatter(argparse.HelpFormatter):
     """
 
     def _format_action(self, action: Action):
-        if isinstance(action, argparse._SubParsersAction):
+        if not isinstance(action, argparse._SubParsersAction):
+            return super()._format_action(action)
+        action_header = self._format_action_invocation(action)
+        action_header = '%*s%s\n' % (self._current_indent, '', action_header)
+        parts = [action_header]
+        self._indent()
+        subactions = action._get_subactions()
+        action_subcommands, group_subcommands = partition(
+            lambda d: isinstance(ALL_COMMANDS_DICT[d.dest], GroupCommand), subactions
+        )
+        parts.extend(("\n", '%*s%s:\n' % (self._current_indent, '', "Groups")))
+        self._indent()
+        parts.extend(self._format_action(subaction) for subaction in group_subcommands)
+        self._dedent()
 
-            parts = []
-            action_header = self._format_action_invocation(action)
-            action_header = '%*s%s\n' % (self._current_indent, '', action_header)
-            parts.append(action_header)
+        parts.extend(("\n", '%*s%s:\n' % (self._current_indent, '', "Commands")))
+        self._indent()
 
-            self._indent()
-            subactions = action._get_subactions()
-            action_subcommands, group_subcommands = partition(
-                lambda d: isinstance(ALL_COMMANDS_DICT[d.dest], GroupCommand), subactions
-            )
-            parts.append("\n")
-            parts.append('%*s%s:\n' % (self._current_indent, '', "Groups"))
-            self._indent()
-            for subaction in group_subcommands:
-                parts.append(self._format_action(subaction))
-            self._dedent()
+        parts.extend(
+            self._format_action(subaction) for subaction in action_subcommands
+        )
 
-            parts.append("\n")
-            parts.append('%*s%s:\n' % (self._current_indent, '', "Commands"))
-            self._indent()
+        self._dedent()
+        self._dedent()
 
-            for subaction in action_subcommands:
-                parts.append(self._format_action(subaction))
-            self._dedent()
-            self._dedent()
-
-            # return a single string
-            return self._join_parts(parts)
-
-        return super()._format_action(action)
+        # return a single string
+        return self._join_parts(parts)
 
 
 @lru_cache(maxsize=None)

@@ -121,7 +121,7 @@ def get_unique_task_id(
             match = re.match(rf"^{prefix}__(\d+)$", task_id)
             if match is None:
                 continue
-            yield int(match.group(1))
+            yield int(match[1])
         yield 0  # Default if there's no matching task ID.
 
     core = re.split(r"__\d+$", task_id)[0]
@@ -189,19 +189,18 @@ class DecoratedOperator(BaseOperator):
         """
         if not self.multiple_outputs:
             return return_value
-        if isinstance(return_value, dict):
-            for key in return_value.keys():
-                if not isinstance(key, str):
-                    raise AirflowException(
-                        'Returned dictionary keys must be strings when using '
-                        f'multiple_outputs, found {key} ({type(key)}) instead'
-                    )
-            for key, value in return_value.items():
-                xcom_push(context, key, value)
-        else:
+        if not isinstance(return_value, dict):
             raise AirflowException(
                 f'Returned output was type {type(return_value)} expected dictionary for multiple_outputs'
             )
+        for key in return_value.keys():
+            if not isinstance(key, str):
+                raise AirflowException(
+                    'Returned dictionary keys must be strings when using '
+                    f'multiple_outputs, found {key} ({type(key)}) instead'
+                )
+        for key, value in return_value.items():
+            xcom_push(context, key, value)
         return return_value
 
     def _hook_apply_defaults(self, *args, **kwargs):
@@ -248,7 +247,7 @@ class _TaskDecorator(Generic[Function, OperatorSubclass]):
         except Exception:  # Can't evaluate retrurn type.
             return False
         ttype = getattr(return_type, "__origin__", return_type)
-        return ttype == dict or ttype == Dict
+        return ttype in [dict, Dict]
 
     def __attrs_post_init__(self):
         if "self" in self.function_signature.parameters:
@@ -410,7 +409,7 @@ def _merge_kwargs(kwargs1: Dict[str, Any], kwargs2: Dict[str, Any], *, fail_reas
     elif duplicated_keys:
         duplicated_keys_display = ", ".join(sorted(duplicated_keys))
         raise TypeError(f"{fail_reason} arguments: {duplicated_keys_display}")
-    return {**kwargs1, **kwargs2}
+    return kwargs1 | kwargs2
 
 
 @attr.define(kw_only=True, repr=False)

@@ -52,8 +52,7 @@ my_dir = dirname(__file__)
 def airflow_test_suite() -> unittest.TestSuite:
     """Test suite for Airflow tests"""
     test_loader = unittest.TestLoader()
-    test_suite = test_loader.discover(os.path.join(my_dir, 'tests'), pattern='test_*.py')
-    return test_suite
+    return test_loader.discover(os.path.join(my_dir, 'tests'), pattern='test_*.py')
 
 
 class CleanCommand(Command):
@@ -903,12 +902,7 @@ EXTRAS_REQUIREMENTS["all_dbs"] = all_dbs + pandas
 devel_all = list(set(_all_requirements + doc + devel + devel_hadoop))
 
 # Those are packages excluded for "all" dependencies
-PACKAGES_EXCLUDED_FOR_ALL = []
-PACKAGES_EXCLUDED_FOR_ALL.extend(
-    [
-        'snakebite',
-    ]
-)
+PACKAGES_EXCLUDED_FOR_ALL = ['snakebite']
 
 
 def is_package_excluded(package: str, exclusion_list: List[str]) -> bool:
@@ -1057,7 +1051,7 @@ def replace_extra_requirement_with_provider_packages(extra: str, providers: List
     :param extra: Name of the extra to add providers to
     :param providers: list of provider ids
     """
-    if extra in ['cncf.kubernetes', 'kubernetes', 'celery']:
+    if extra in {'cncf.kubernetes', 'kubernetes', 'celery'}:
         EXTRAS_REQUIREMENTS[extra].extend(
             [get_provider_package_from_package_id(package_name) for package_name in providers]
         )

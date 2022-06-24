@@ -61,8 +61,12 @@ def generate_pod_yaml(args):
         api_client = ApiClient()
         date_string = pod_generator.datetime_to_label_safe_datestring(execution_date)
         yaml_file_name = f"{args.dag_id}_{ti.task_id}_{date_string}.yml"
-        os.makedirs(os.path.dirname(yaml_output_path + "/airflow_yaml_output/"), exist_ok=True)
-        with open(yaml_output_path + "/airflow_yaml_output/" + yaml_file_name, "w") as output:
+        os.makedirs(
+            os.path.dirname(f"{yaml_output_path}/airflow_yaml_output/"),
+            exist_ok=True,
+        )
+
+        with open(f"{yaml_output_path}/airflow_yaml_output/{yaml_file_name}", "w") as output:
             sanitized_pod = api_client.sanitize_for_serialization(pod)
             output.write(yaml.dump(sanitized_pod))
     print(f"YAML output can be found at {yaml_output_path}/airflow_yaml_output/")
@@ -75,9 +79,7 @@ def cleanup_pods(args):
 
     min_pending_minutes = args.min_pending_minutes
     # protect newly created pods from deletion
-    if min_pending_minutes < 5:
-        min_pending_minutes = 5
-
+    min_pending_minutes = max(min_pending_minutes, 5)
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
     # All Containers in the Pod have terminated in success, and will not be restarted.
     pod_succeeded = 'succeeded'

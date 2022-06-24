@@ -571,8 +571,7 @@ class DagFileProcessor(LoggingMixin):
 
         def check_pools(dag):
             task_pools = {task.pool for task in dag.tasks}
-            nonexistent_pools = task_pools - pools
-            if nonexistent_pools:
+            if nonexistent_pools := task_pools - pools:
                 return (
                     f"Dag '{dag.dag_id}' references non-existent pools: {list(sorted(nonexistent_pools))!r}"
                 )

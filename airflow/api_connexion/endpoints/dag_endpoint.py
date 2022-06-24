@@ -107,10 +107,9 @@ def patch_dag(*, dag_id: str, update_mask: UpdateMask = None, session: Session =
     except ValidationError as err:
         raise BadRequest(detail=str(err.messages))
     if update_mask:
-        patch_body_ = {}
         if update_mask != ['is_paused']:
             raise BadRequest(detail="Only `is_paused` field can be updated through the REST API")
-        patch_body_[update_mask[0]] = patch_body[update_mask[0]]
+        patch_body_ = {update_mask[0]: patch_body[update_mask[0]]}
         patch_body = patch_body_
     dag = session.query(DagModel).filter(DagModel.dag_id == dag_id).one_or_none()
     if not dag:
@@ -130,11 +129,10 @@ def patch_dags(limit, session, offset=0, only_active=True, tags=None, dag_id_pat
     except ValidationError as err:
         raise BadRequest(detail=str(err.messages))
     if update_mask:
-        patch_body_ = {}
         if update_mask != ['is_paused']:
             raise BadRequest(detail="Only `is_paused` field can be updated through the REST API")
         update_mask = update_mask[0]
-        patch_body_[update_mask] = patch_body[update_mask]
+        patch_body_ = {update_mask: patch_body[update_mask]}
         patch_body = patch_body_
     if only_active:
         dags_query = session.query(DagModel).filter(~DagModel.is_subdag, DagModel.is_active)

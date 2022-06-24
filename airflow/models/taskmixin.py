@@ -137,9 +137,7 @@ class DAGNode(DependencyMixin, metaclass=ABCMeta):
     @property
     def dag_id(self) -> str:
         """Returns dag id if it has one or an adhoc/meaningless ID"""
-        if self.dag:
-            return self.dag.dag_id
-        return "_in_memory_dag_"
+        return self.dag.dag_id if self.dag else "_in_memory_dag_"
 
     @property
     def log(self) -> "Logger":
@@ -259,20 +257,14 @@ class DAGNode(DependencyMixin, metaclass=ABCMeta):
         Get set of the direct relative ids to the current task, upstream or
         downstream.
         """
-        if upstream:
-            return self.upstream_task_ids
-        else:
-            return self.downstream_task_ids
+        return self.upstream_task_ids if upstream else self.downstream_task_ids
 
     def get_direct_relatives(self, upstream: bool = False) -> Iterable["DAGNode"]:
         """
         Get list of the direct relatives to the current task, upstream or
         downstream.
         """
-        if upstream:
-            return self.upstream_list
-        else:
-            return self.downstream_list
+        return self.upstream_list if upstream else self.downstream_list
 
     def serialize_for_task_group(self) -> Tuple[DagAttributeTypes, Any]:
         """This is used by SerializedTaskGroup to serialize a task group's content."""

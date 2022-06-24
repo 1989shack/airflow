@@ -190,7 +190,7 @@ class Pool(Base):
                 raise AirflowException(f"Unexpected state. Expected values: {EXECUTION_STATES}.")
 
         # calculate open metric
-        for pool_name, stats_dict in pools.items():
+        for stats_dict in pools.values():
             stats_dict["open"] = stats_dict["total"] - stats_dict["running"] - stats_dict["queued"]
 
         return pools

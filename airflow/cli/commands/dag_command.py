@@ -81,10 +81,7 @@ def dag_backfill(args, dag=None):
                 f"There are no tasks that match '{args.task_regex}' regex. Nothing to run, exiting..."
             )
 
-    run_conf = None
-    if args.conf:
-        run_conf = json.loads(args.conf)
-
+    run_conf = json.loads(args.conf) if args.conf else None
     if args.dry_run:
         print(f"Dry run of DAG {args.dag_id} on {args.start_date}")
         dr = DagRun(dag.dag_id, execution_date=args.start_date)
@@ -122,7 +119,7 @@ def dag_backfill(args, dag=None):
                 continue_on_failures=args.continue_on_failures,
             )
         except ValueError as vr:
-            print(str(vr))
+            print(vr)
             sys.exit(1)
 
 
@@ -260,9 +257,7 @@ def dag_state(args, session=NEW_SESSION):
         raise SystemExit(f"DAG: {args.dag_id} does not exist in 'dag' table")
     dr = session.query(DagRun).filter_by(dag_id=args.dag_id, execution_date=args.execution_date).one_or_none()
     out = dr.state if dr else None
-    conf_out = ''
-    if out and dr.conf:
-        conf_out = ', ' + json.dumps(dr.conf)
+    conf_out = f', {json.dumps(dr.conf)}' if out and dr.conf else ''
     print(str(out) + conf_out)
 
 
@@ -341,9 +336,11 @@ def dag_list_dags(args):
 def dag_list_import_errors(args):
     """Displays dags with import errors on the command line"""
     dagbag = DagBag(process_subdir(args.subdir))
-    data = []
-    for filename, errors in dagbag.import_errors.items():
-        data.append({"filepath": filename, "error": errors})
+    data = [
+        {"filepath": filename, "error": errors}
+        for filename, errors in dagbag.import_errors.items()
+    ]
+
     AirflowConsole().print_as(
         data=data,
         output=args.output,
@@ -453,7 +450,7 @@ def dag_test(args, session=None):
             run_at_least_once=True,
         )
     except BackfillUnfinished as e:
-        print(str(e))
+        print(e)
 
     show_dagrun = args.show_dagrun
     imgcat = args.imgcat_dagrun
@@ -470,12 +467,12 @@ def dag_test(args, session=None):
 
         dot_graph = render_dag(dag, tis=tis)
         print()
-        if filename:
-            _save_dot_to_file(dot_graph, filename)
-        if imgcat:
-            _display_dot_via_imgcat(dot_graph)
-        if show_dagrun:
-            print(dot_graph.source)
+    if filename:
+        _save_dot_to_file(dot_graph, filename)
+    if imgcat:
+        _display_dot_via_imgcat(dot_graph)
+    if show_dagrun:
+        print(dot_graph.source)
 
 
 @provide_session

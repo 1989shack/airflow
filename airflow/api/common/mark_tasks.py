@@ -169,12 +169,14 @@ def all_subdag_tasks_query(
     confirmed_dates: Iterable[datetime],
 ):
     """Get *all* tasks of the sub dags"""
-    qry_sub_dag = (
+    return (
         session.query(TaskInstance)
-        .filter(TaskInstance.dag_id.in_(sub_dag_run_ids), TaskInstance.execution_date.in_(confirmed_dates))
+        .filter(
+            TaskInstance.dag_id.in_(sub_dag_run_ids),
+            TaskInstance.execution_date.in_(confirmed_dates),
+        )
         .filter(or_(TaskInstance.state.is_(None), TaskInstance.state != state))
     )
-    return qry_sub_dag
 
 
 def get_all_dag_task_query(
@@ -296,23 +298,22 @@ def get_execution_dates(
     execution_date = timezone.coerce_datetime(execution_date)
     # determine date range of dag runs and tasks to consider
     end_date = latest_execution_date if future else execution_date
-    if dag.start_date:
-        start_date = dag.start_date
-    else:
-        start_date = execution_date
-    start_date = execution_date if not past else start_date
+    start_date = dag.start_date or execution_date
+    start_date = start_date if past else execution_date
     if not dag.timetable.can_run:
         # If the DAG never schedules, need to look at existing DagRun if the user wants future or
         # past runs.
         dag_runs = dag.get_dagruns_between(start_date=start_date, end_date=end_date)
-        dates = sorted({d.execution_date for d in dag_runs})
+        return sorted({d.execution_date for d in dag_runs})
     elif not dag.timetable.periodic:
-        dates = [start_date]
+        return [start_date]
     else:
-        dates = [
-            info.logical_date for info in dag.iter_dagrun_infos_between(start_date, end_date, align=False)
+        return [
+            info.logical_date
+            for info in dag.iter_dagrun_infos_between(
+                start_date, end_date, align=False
+            )
         ]
-    return dates
 
 
 @provide_session
@@ -332,20 +333,24 @@ def get_run_ids(dag: DAG, run_id: str, future: bool, past: bool, session: SASess
 
     # determine run_id range of dag runs and tasks to consider
     end_date = last_dagrun.logical_date if future else current_dagrun.logical_date
-    start_date = current_dagrun.logical_date if not past else first_dagrun.logical_date
+    start_date = first_dagrun.logical_date if past else current_dagrun.logical_date
     if not dag.timetable.can_run:
         # If the DAG never schedules, need to look at existing DagRun if the user wants future or
         # past runs.
         dag_runs = dag.get_dagruns_between(start_date=start_date, end_date=end_date, session=session)
-        run_ids = sorted({d.run_id for d in dag_runs})
+        return sorted({d.run_id for d in dag_runs})
     elif not dag.timetable.periodic:
-        run_ids = [run_id]
+        return [run_id]
     else:
         dates = [
             info.logical_date for info in dag.iter_dagrun_infos_between(start_date, end_date, align=False)
         ]
-        run_ids = [dr.run_id for dr in DagRun.find(dag_id=dag.dag_id, execution_date=dates, session=session)]
-    return run_ids
+        return [
+            dr.run_id
+            for dr in DagRun.find(
+                dag_id=dag.dag_id, execution_date=dates, session=session
+            )
+        ]
 
 
 def _set_dag_run_state(dag_id: str, run_id: str, state: DagRunState, session: SASession = NEW_SESSION):
@@ -481,7 +486,7 @@ def set_dag_run_state_to_failed(
         TaskInstance.state.not_in(State.running),
     )
 
-    tis = [ti for ti in tis]
+    tis = list(tis)
     if commit:
         for ti in tis:
             ti.set_state(State.SKIPPED)

@@ -97,8 +97,7 @@ def execute_command(command_to_exec: CommandType) -> None:
 
 
 def _execute_in_fork(command_to_exec: CommandType, celery_task_id: Optional[str] = None) -> None:
-    pid = os.fork()
-    if pid:
+    if pid := os.fork():
         # In parent, wait for the child
         pid, ret = os.waitpid(pid, 0)
         if ret == 0:
@@ -332,8 +331,7 @@ class CeleryExecutor(BaseExecutor):
         self._check_for_stalled_tasks()
 
     def _check_for_timedout_adopted_tasks(self) -> None:
-        timedout_keys = self._get_timedout_ti_keys(self.adopted_task_timeouts)
-        if timedout_keys:
+        if timedout_keys := self._get_timedout_ti_keys(self.adopted_task_timeouts):
             self.log.error(
                 "Adopted tasks were still pending after %s, assuming they never made it to celery "
                 "and sending back to the scheduler:\n\t%s",
@@ -343,8 +341,7 @@ class CeleryExecutor(BaseExecutor):
             self._send_stalled_tis_back_to_scheduler(timedout_keys)
 
     def _check_for_stalled_tasks(self) -> None:
-        timedout_keys = self._get_timedout_ti_keys(self.stalled_task_timeouts)
-        if timedout_keys:
+        if timedout_keys := self._get_timedout_ti_keys(self.stalled_task_timeouts):
             self.log.error(
                 "Tasks were still pending after %s, assuming they never made it to celery "
                 "and sending back to the scheduler:\n\t%s",
@@ -412,8 +409,7 @@ class CeleryExecutor(BaseExecutor):
         for key in keys:
             self._set_celery_pending_task_timeout(key, None)
             self.running.discard(key)
-            celery_async_result = self.tasks.pop(key, None)
-            if celery_async_result:
+            if celery_async_result := self.tasks.pop(key, None):
                 try:
                     app.control.revoke(celery_async_result.task_id)
                 except Exception as ex:
@@ -462,9 +458,7 @@ class CeleryExecutor(BaseExecutor):
             elif state == celery_states.STARTED:
                 # It's now actually running, so we know it made it to celery okay!
                 self._set_celery_pending_task_timeout(key, None)
-            elif state == celery_states.PENDING:
-                pass
-            else:
+            elif state != celery_states.PENDING:
                 self.log.info("Unexpected state for %s: %s", key, state)
         except Exception:
             self.log.exception("Error syncing the Celery executor, ignoring it.")
@@ -626,10 +620,9 @@ class BulkStateFetcher(LoggingMixin):
     ) -> Mapping[str, EventBufferValueType]:
         state_info: MutableMapping[str, EventBufferValueType] = {}
         for task_id in task_ids:
-            task_result = task_results_by_task_id.get(task_id)
-            if task_result:
+            if task_result := task_results_by_task_id.get(task_id):
                 state = task_result["status"]
-                info = None if not hasattr(task_result, "info") else task_result["info"]
+                info = task_result["info"] if hasattr(task_result, "info") else None
             else:
                 state = celery_states.PENDING
                 info = None

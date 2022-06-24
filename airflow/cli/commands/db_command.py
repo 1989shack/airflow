@@ -31,14 +31,14 @@ from airflow.utils.process_utils import execute_interactive
 
 def initdb(args):
     """Initializes the metadata database"""
-    print("DB: " + repr(settings.engine.url))
+    print(f"DB: {repr(settings.engine.url)}")
     db.initdb()
     print("Initialization done")
 
 
 def resetdb(args):
     """Resets the metadata database"""
-    print("DB: " + repr(settings.engine.url))
+    print(f"DB: {repr(settings.engine.url)}")
     if not (args.yes or input("This will drop existing tables if they exist. Proceed? (y/n)").upper() == "Y"):
         raise SystemExit("Cancelled")
     db.resetdb(skip_init=args.skip_init)
@@ -47,7 +47,7 @@ def resetdb(args):
 @cli_utils.action_cli(check_db=False)
 def upgradedb(args):
     """Upgrades the metadata database"""
-    print("DB: " + repr(settings.engine.url))
+    print(f"DB: {repr(settings.engine.url)}")
     if args.to_revision and args.to_version:
         raise SystemExit("Cannot supply both `--to-revision` and `--to-version`.")
     if args.from_version and args.from_revision:
@@ -75,7 +75,7 @@ def upgradedb(args):
         to_revision = args.to_revision
 
     if not args.show_sql_only:
-        print("Performing upgrade with database " + repr(settings.engine.url))
+        print(f"Performing upgrade with database {repr(settings.engine.url)}")
     else:
         print("Generating sql for upgrade -- upgrade commands will *not* be submitted.")
 
@@ -111,7 +111,7 @@ def downgrade(args):
     elif args.to_revision:
         to_revision = args.to_revision
     if not args.show_sql_only:
-        print("Performing downgrade with database " + repr(settings.engine.url))
+        print(f"Performing downgrade with database {repr(settings.engine.url)}")
     else:
         print("Generating sql for downgrade -- downgrade commands will *not* be submitted.")
 
@@ -140,7 +140,7 @@ def check_migrations(args):
 def shell(args):
     """Run a shell that allows to access metadata database"""
     url = settings.engine.url
-    print("DB: " + repr(url))
+    print(f"DB: {repr(url)}")
 
     if url.get_backend_name() == 'mysql':
         with NamedTemporaryFile(suffix="my.cnf") as f:

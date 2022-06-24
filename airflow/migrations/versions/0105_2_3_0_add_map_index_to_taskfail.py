@@ -94,14 +94,13 @@ def _update_value_from_dag_run(
     condition_list = [getattr(dag_run.c, x) == getattr(target_table.c, x) for x in join_columns]
     condition = and_(*condition_list)
 
-    if dialect_name == "sqlite":
-        # Most SQLite versions don't support multi table update (and SQLA doesn't know about it anyway), so we
-        # need to do a Correlated subquery update
-        sub_q = select([dag_run.c[target_column.name]]).where(condition)
-
-        return target_table.update().values({target_column: sub_q})
-    else:
+    if dialect_name != "sqlite":
         return target_table.update().where(condition).values({target_column: dag_run.c[target_column.name]})
+    # Most SQLite versions don't support multi table update (and SQLA doesn't know about it anyway), so we
+    # need to do a Correlated subquery update
+    sub_q = select([dag_run.c[target_column.name]]).where(condition)
+
+    return target_table.update().values({target_column: sub_q})
 
 
 def upgrade():

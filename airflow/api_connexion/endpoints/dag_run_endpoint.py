@@ -216,8 +216,7 @@ def get_dag_runs_batch(*, session: Session = NEW_SESSION) -> APIResponse:
     else:
         query = query.filter(DagRun.dag_id.in_(readable_dag_ids))
 
-    states = data.get("states")
-    if states:
+    if states := data.get("states"):
         query = query.filter(DagRun.state.in_(states))
 
     dag_runs, total_entries = _fetch_dag_runs(

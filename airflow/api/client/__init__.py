@@ -30,8 +30,7 @@ def get_current_api_client() -> Client:
     auth_backends = api.load_auth()
     session = None
     for backend in auth_backends:
-        session_factory = getattr(backend, 'create_client_session', None)
-        if session_factory:
+        if session_factory := getattr(backend, 'create_client_session', None):
             session = session_factory()
         api_client = api_module.Client(
             api_base_url=conf.get('cli', 'endpoint_url'),

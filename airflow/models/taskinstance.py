@@ -675,9 +675,8 @@ class TaskInstance(Base, LoggingMixin):
         else:
             dag = self.dag_model
 
-        should_pass_filepath = not pickle_id and dag
         path = None
-        if should_pass_filepath:
+        if should_pass_filepath := not pickle_id and dag:
             if dag.is_subdag:
                 path = dag.parent_dag.relative_fileloc
             else:
@@ -921,10 +920,7 @@ class TaskInstance(Base, LoggingMixin):
         :param session: SQLAlchemy ORM Session
         """
         self.log.debug("Clearing XCom data")
-        if self.map_index < 0:
-            map_index: Optional[int] = None
-        else:
-            map_index = self.map_index
+        map_index = None if self.map_index < 0 else self.map_index
         XCom.clear(
             dag_id=self.dag_id,
             task_id=self.task_id,
@@ -1173,7 +1169,7 @@ class TaskInstance(Base, LoggingMixin):
         prefix = f"<TaskInstance: {self.dag_id}.{self.task_id} {self.run_id} "
         if self.map_index != -1:
             prefix += f"map_index={self.map_index} "
-        return prefix + f"[{self.state}]>"
+        return f"{prefix}[{self.state}]>"
 
     def next_retry_datetime(self):
         """
@@ -1191,9 +1187,7 @@ class TaskInstance(Base, LoggingMixin):
             # To address this, we impose a lower bound of 1 on min_backoff. This effectively makes
             # the ceiling function unnecessary, but the ceiling function was retained to avoid
             # introducing a breaking change.
-            if min_backoff < 1:
-                min_backoff = 1
-
+            min_backoff = max(min_backoff, 1)
             # deterministic per task instance
             ti_hash = int(
                 hashlib.sha1(
@@ -1385,7 +1379,7 @@ class TaskInstance(Base, LoggingMixin):
             params.append(self.map_index)
             message += 'map_index=%d, '
         self.log.info(
-            message + 'execution_date=%s, start_date=%s, end_date=%s',
+            f'{message}execution_date=%s, start_date=%s, end_date=%s',
             *params,
             self._date_or_empty('execution_date'),
             self._date_or_empty('start_date'),
@@ -1664,10 +1658,7 @@ class TaskInstance(Base, LoggingMixin):
         else:
             result = execute_callable(context=context)
         with create_session() as session:
-            if task_to_execute.do_xcom_push:
-                xcom_value = result
-            else:
-                xcom_value = None
+            xcom_value = result if task_to_execute.do_xcom_push else None
             if xcom_value is not None:  # If the task returns a result, push an XCom containing it.
                 self.xcom_push(key=XCOM_RETURN_KEY, value=xcom_value, session=session)
             self._record_task_map_for_downstreams(task_orig, xcom_value, session=session)
@@ -1703,10 +1694,7 @@ class TaskInstance(Base, LoggingMixin):
         else:
             self.trigger_timeout = None
 
-        # If an execution_timeout is set, set the timeout to the minimum of
-        # it and the trigger timeout
-        execution_timeout = self.task.execution_timeout
-        if execution_timeout:
+        if execution_timeout := self.task.execution_timeout:
             if self.trigger_timeout:
                 self.trigger_timeout = min(self.start_date + execution_timeout, self.trigger_timeout)
             else:
@@ -2110,8 +2098,9 @@ class TaskInstance(Base, LoggingMixin):
         """
         from airflow.models.renderedtifields import RenderedTaskInstanceFields
 
-        rendered_task_instance_fields = RenderedTaskInstanceFields.get_templated_fields(self, session=session)
-        if rendered_task_instance_fields:
+        if rendered_task_instance_fields := RenderedTaskInstanceFields.get_templated_fields(
+            self, session=session
+        ):
             self.task = self.task.unmap()
             for field_name, rendered_value in rendered_task_instance_fields.items():
                 setattr(self.task, field_name, rendered_value)
@@ -2192,8 +2181,7 @@ class TaskInstance(Base, LoggingMixin):
             base_worker_pod=PodGenerator.deserialize_model_file(kube_config.pod_template_file),
         )
         settings.pod_mutation_hook(pod)
-        sanitized_pod = ApiClient().sanitize_for_serialization(pod)
-        return sanitized_pod
+        return ApiClient().sanitize_for_serialization(pod)
 
     def get_email_subject_content(
         self, exception: BaseException, task: Optional["BaseOperator"] = None
@@ -2603,14 +2591,10 @@ class SimpleTaskInstance:
     @classmethod
     def from_dict(cls, obj_dict: dict):
         ti_key = TaskInstanceKey(*obj_dict.pop('key'))
-        start_date = None
-        end_date = None
         start_date_str: Optional[str] = obj_dict.pop('start_date')
         end_date_str: Optional[str] = obj_dict.pop('end_date')
-        if start_date_str:
-            start_date = timezone.parse(start_date_str)
-        if end_date_str:
-            end_date = timezone.parse(end_date_str)
+        start_date = timezone.parse(start_date_str) if start_date_str else None
+        end_date = timezone.parse(end_date_str) if end_date_str else None
         return cls(**obj_dict, start_date=start_date, end_date=end_date, key=ti_key)
 
 

@@ -97,7 +97,7 @@ class Param:
     def dump(self) -> dict:
         """Dump the Param as a dictionary"""
         out_dict = {self.CLASS_IDENTIFIER: f'{self.__module__}.{self.__class__.__name__}'}
-        out_dict.update(self.__dict__)
+        out_dict |= self.__dict__
         return out_dict
 
     @property
@@ -122,10 +122,7 @@ class ParamsDict(MutableMapping[str, Any]):
         params_dict: Dict[str, Param] = {}
         dict_obj = dict_obj or {}
         for k, v in dict_obj.items():
-            if not isinstance(v, Param):
-                params_dict[k] = Param(v)
-            else:
-                params_dict[k] = v
+            params_dict[k] = v if isinstance(v, Param) else Param(v)
         self.__dict = params_dict
         self.suppress_exception = suppress_exception
 

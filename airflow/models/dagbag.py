@@ -566,7 +566,7 @@ class DagBag(LoggingMixin):
         task_num = sum(o.task_num for o in stats)
         table = tabulate(stats, headers="keys")
 
-        report = textwrap.dedent(
+        return textwrap.dedent(
             f"""\n
         -------------------------------------------------------------------
         DagBag loading stats for {dag_folder}
@@ -577,7 +577,6 @@ class DagBag(LoggingMixin):
         {table}
         """
         )
-        return report
 
     @provide_session
     def sync_to_db(self, session: Session = None):
@@ -595,13 +594,11 @@ class DagBag(LoggingMixin):
             if dag.is_subdag:
                 return []
             try:
-                # We can't use bulk_write_to_db as we want to capture each error individually
-                dag_was_updated = SerializedDagModel.write_dag(
+                if dag_was_updated := SerializedDagModel.write_dag(
                     dag,
                     min_update_interval=settings.MIN_SERIALIZED_DAG_UPDATE_INTERVAL,
                     session=session,
-                )
-                if dag_was_updated:
+                ):
                     self._sync_perm_for_dag(dag, session=session)
                 return []
             except OperationalError:
@@ -645,17 +642,17 @@ class DagBag(LoggingMixin):
 
         def needs_perms(dag_id: str) -> bool:
             dag_resource_name = resource_name_for_dag(dag_id)
-            for permission_name in DAG_ACTIONS:
-                if not (
+            return any(
+                not (
                     session.query(Permission)
                     .join(Action)
                     .join(Resource)
                     .filter(Action.name == permission_name)
                     .filter(Resource.name == dag_resource_name)
                     .one_or_none()
-                ):
-                    return True
-            return False
+                )
+                for permission_name in DAG_ACTIONS
+            )
 
         if dag.access_control or needs_perms(root_dag_id):
             self.log.debug("Syncing DAG permissions: %s to the DB", root_dag_id)
